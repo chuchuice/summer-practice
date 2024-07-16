@@ -252,7 +252,6 @@ public class MusicJDBC {
 
     private static void getSongNamed(Connection connection, String title) throws SQLException {
         if (title == null || title.isBlank()) return;
-        title = '%' + title + '%';
 
         long time = System.currentTimeMillis();
         PreparedStatement statement = connection.prepareStatement (
@@ -260,6 +259,7 @@ public class MusicJDBC {
                         " FROM album_songs" +
                         " JOIN author ON album_songs.author_id = author.id" +
                         " JOIN genres ON album_songs.genre_id = genres.id" +
+                        " WHERE title LIKE ?" +
                         " UNION ALL" +
                         " SELECT singles.id, title, author.nickname, genres.genre, length_of_the_song" +
                         " FROM singles" +
