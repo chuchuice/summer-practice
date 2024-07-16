@@ -208,8 +208,8 @@ public class MusicJDBC {
             System.out.printf("%-3s | %-30s | %-10s | %-20s | %-10s | %-15s | %-50s%n", "id", "title", "nickname", "album_title", "genre", "date_of_release", "length");
             System.out.println("-".repeat(125));
 
-            while (resultSet.next()) {  // пока есть данные перебираем их
-                if (resultSet.getString(4).equalsIgnoreCase(title)) { // и выводим только определенный параметр
+            while (resultSet.next()) {
+                if (resultSet.getString(4).equalsIgnoreCase(title)) {
                     System.out.printf("%-3s | %-30s | %-10s | %-20s | %-10s | %-15s | %-50s%n", resultSet.getInt(1),
                             resultSet.getString(2), resultSet.getString(3), resultSet.getString(4),
                             resultSet.getString(5), resultSet.getDate(6), resultSet.getTime(7)
@@ -361,7 +361,7 @@ public class MusicJDBC {
         statement.setDate(4, dateOfRelease);
         statement.setTime(5, lengthOfTheSong);
 
-        int count = statement.executeUpdate();  // выполняем запрос на коррекцию и возвращаем количество измененных строк
+        int count = statement.executeUpdate();
 
         ResultSet resultSet = statement.getGeneratedKeys();
         if (resultSet.next()) {
