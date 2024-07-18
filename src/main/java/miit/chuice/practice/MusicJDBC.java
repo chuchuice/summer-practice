@@ -15,9 +15,9 @@ public class MusicJDBC {
     private static final String DRIVER = "org.postgresql.Driver";
     private static final String URL_LOCALE_NAME = "localhost/";
     private static final String DATABASE_NAME = "music_app";
-    public static final String DATABASE_URL = PROTOCOL + URL_LOCALE_NAME + DATABASE_NAME;
-    public static final String USER_NAME = "postgres";
-    public static final String DATABASE_PASS = "postgres";
+    private static final String DATABASE_URL = PROTOCOL + URL_LOCALE_NAME + DATABASE_NAME;
+    private static final String USER_NAME = "postgres";
+    private static final String DATABASE_PASS = "postgres";
 
     public static void main(String[] args) {
         checkDriver();
@@ -25,29 +25,41 @@ public class MusicJDBC {
 
         try(Connection connection = DriverManager.getConnection(DATABASE_URL, USER_NAME, DATABASE_PASS)) {
 
-            //showing all tables
             getGenres(connection); System.out.println();
             getAlbums(connection); System.out.println();
-            getAllAlbumsSongs(connection); System.out.println();
-            getAuthors(connection); System.out.println();
+            getAuthorsAlbumsSongs(connection, "Radiohead"); System.out.println();
+            getAuthors(connection, 1965); System.out.println();
             getSingles(connection); System.out.println();
 
-            // showing with param (search a track and search album's tracks)
-            getAlbumsSong(connection, "Nevermind", true); System.out.println();
-            getAlbumsSong(connection, "OK Computer", false); System.out.println();
+            getAlbumsSong(connection, "Nevermind"); System.out.println();
             getSongNamed(connection, "Climbing Up the Walls"); System.out.println();
 
             addAuthor(connection, "Sonny", "John", "Skrillex", Date.valueOf("1988-01-15"));
+            removeAuthor(connection, "Sonny", "Skrillex");
             addSingle(connection, 15, 14, "505", Date.valueOf("2020-04-17"), Time.valueOf("00:02:00"));
             updateSingle(connection, "new title", "505", "Arctic Monkeys");
             removeSingle(connection, "new title", "Arctic Monkeys");
 
         } catch (SQLException e) {
             if (e.getSQLState().startsWith("23")){
-                System.err.println("Произошло дублирование данных");
+                System.err.println("Произошло дублирование данных / Такого вторичного ключа не существует");
             } else throw new RuntimeException(e);
         }
 
+    }
+
+    private static void removeAuthor(Connection connection, String name, String nickname) throws SQLException {
+        if (name == null || name.isBlank() || nickname == null || nickname.isBlank()) return;
+
+        PreparedStatement statement = connection.prepareStatement(
+                "DELETE FROM author WHERE name = ? AND nickname = ?;");
+
+        statement.setString(1, name);
+        statement.setString(2, nickname);
+
+        int count = statement.executeUpdate();
+        System.out.println("DELETEd " + count + " authors");
+        getAuthors(connection, 0);
     }
 
     public static void checkDriver() {
@@ -82,7 +94,8 @@ public class MusicJDBC {
         Statement statement = connection.createStatement();
         ResultSet resultSet = statement.executeQuery("SELECT * FROM music_app.public.singles");
 
-        System.out.printf("%-3s | %-10s | %-10s | %-20s | %-15s | %-50s%n", "id", "author_id", "genre_id", "title", "date_of_release", "length_of_the_song");
+        System.out.printf("%-3s | %-10s | %-10s | %-20s | %-15s | %-50s%n",
+                "id", "author_id", "genre_id", "title", "date_of_release", "length_of_the_song");
         System.out.println("-".repeat(100));
 
         while (resultSet.next()) {
@@ -92,33 +105,31 @@ public class MusicJDBC {
             title = resultSet.getString(columnNames[3]);
             dateOfRelease = resultSet.getString(columnNames[4]);
             lengthOfTheSong = resultSet.getString(columnNames[5]);
-            System.out.printf("%-3s | %-10s | %-10s | %-20s | %-15s | %-50s%n", id, authorId, genreId, title, dateOfRelease, lengthOfTheSong);
+            System.out.printf("%-3s | %-10s | %-10s | %-20s | %-15s | %-50s%n",
+                    id, authorId, genreId, title, dateOfRelease, lengthOfTheSong);
         }
     }
 
-    private static void getAllAlbumsSongs(Connection connection) throws SQLException {
-        String[] columnNames = {"id", "genre_id", "author_id", "title", "length_of_the_song", "album_id"};
-        int id;
-        int genreId;
-        int authorId;
-        int albumId;
-        String title;
-        Time lengthOfTheSong;
+    private static void getAuthorsAlbumsSongs(Connection connection, String nickname) throws SQLException {
+        if (nickname == null || nickname.isBlank()) return;
 
-        Statement statement = connection.createStatement();
-        ResultSet resultSet = statement.executeQuery("SELECT * FROM music_app.public.album_songs");
+        PreparedStatement statement = connection.prepareStatement(
+                "SELECT album_songs.id, title, author.nickname, genre_id, length_of_the_song FROM album_songs " +
+                "JOIN author ON album_songs.author_id = author.id " +
+                "WHERE nickname = ?"
+        );
 
-        System.out.printf("%-3s | %-10s | %-10s | %-8s | %-30s | %-50s%n", "id", "genre_id", "author_id", "album_id", "title", "length_of_the_song");
-        System.out.println("-".repeat(100));
+        statement.setString(1, nickname);
+        ResultSet resultSet = statement.executeQuery();
+
+        System.out.printf("%-3s | %-30s | %-10s | %-8s | %-30s%n",
+                "id", "title", "nickname", "genre_id", "length_of_the_song");
+        System.out.println("-".repeat(85));
 
         while (resultSet.next()) {
-            id = resultSet.getInt(columnNames[0]);
-            genreId = resultSet.getInt(columnNames[1]);
-            authorId = resultSet.getInt(columnNames[2]);
-            title = resultSet.getString(columnNames[3]);
-            lengthOfTheSong = resultSet.getTime(columnNames[4]);;
-            albumId = resultSet.getInt(columnNames[5]);
-            System.out.printf("%-3s | %-10s | %-10s | %-8s | %-30s | %-50s%n", id, genreId, authorId, albumId, title, lengthOfTheSong);
+            System.out.printf("%-3s | %-30s | %-10s | %-8s | %-30s%n",
+                    resultSet.getInt(1), resultSet.getString(2), resultSet.getString(3),
+                    resultSet.getInt(4), resultSet.getTime(5));
         }
     }
 
@@ -131,7 +142,8 @@ public class MusicJDBC {
         int numberOfTracks;
 
         Statement statement = connection.createStatement();
-        ResultSet resultSet = statement.executeQuery("SELECT * FROM music_app.public.album");
+        ResultSet resultSet = statement.executeQuery("SELECT * FROM music_app.public.album" +
+                " WHERE (date_of_release BETWEEN '1970-01-01' AND '2000-01-01')");
 
         System.out.printf("%-3s | %-10s | %-25s | %-15s | %-30s%n", "id", "author_id", "title", "date_of_release", "number_of_tracks");
         System.out.println("-".repeat(85));
@@ -146,7 +158,7 @@ public class MusicJDBC {
         }
     }
 
-    private static void getAuthors(Connection connection) throws SQLException {
+    private static void getAuthors(Connection connection, int year) throws SQLException {
         String[] columnNames = {"id", "name", "surname", "nickname", "date_of_birth"};
         int id;
         String name;
@@ -154,10 +166,14 @@ public class MusicJDBC {
         String nickname;
         Date dateOfBirth;
 
-        Statement statement = connection.createStatement();
-        ResultSet resultSet = statement.executeQuery("SELECT * FROM music_app.public.author ORDER BY id");
+        PreparedStatement statement = connection.prepareStatement(
+                "SELECT * FROM author WHERE EXTRACT(YEAR FROM date_of_birth) > ? ORDER BY id"
+        );
+        statement.setInt(1, year);
+        ResultSet resultSet = statement.executeQuery();
 
-        System.out.printf("%-3s | %-10s | %-10s | %-20s | %-30s%n", "id", "name", "surname", "nickname", "date_of_birth");
+        System.out.printf("%-3s | %-10s | %-10s | %-20s | %-30s%n",
+                "id", "name", "surname", "nickname", "date_of_birth");
         System.out.println("-".repeat(70));
 
         while (resultSet.next()) {
@@ -186,39 +202,7 @@ public class MusicJDBC {
             System.out.printf("%d\t |\t %s\n", id, genre);
         }
     }
-
-
-    private static void getAlbumsSong(Connection connection, String title, boolean fromSQL) throws SQLException {
-        if (title == null || title.isBlank()) return;
-
-        if (fromSQL) getAlbumsSong(connection, title);
-        else {
-            long time = System.currentTimeMillis();
-            Statement statement = connection.createStatement();
-
-            ResultSet resultSet = statement.executeQuery(
-                    "SELECT album_songs.id, album_songs.title, author.nickname," +
-                            " album.title, genres.genre, album.date_of_release, album_songs.length_of_the_song\n" +
-                            " FROM album_songs" +
-                            " JOIN author ON album_songs.author_id = author.id" +
-                            " JOIN genres ON album_songs.genre_id = genres.id" +
-                            " JOIN album ON album_songs.album_id = album.id;"
-            );
-
-            System.out.printf("%-3s | %-30s | %-10s | %-20s | %-10s | %-15s | %-50s%n", "id", "title", "nickname", "album_title", "genre", "date_of_release", "length");
-            System.out.println("-".repeat(125));
-
-            while (resultSet.next()) {
-                if (resultSet.getString(4).equalsIgnoreCase(title)) {
-                    System.out.printf("%-3s | %-30s | %-10s | %-20s | %-10s | %-15s | %-50s%n", resultSet.getInt(1),
-                            resultSet.getString(2), resultSet.getString(3), resultSet.getString(4),
-                            resultSet.getString(5), resultSet.getDate(6), resultSet.getTime(7)
-                    );
-                }
-            }
-            System.out.println("SELECT ALL and FIND (" + (System.currentTimeMillis() - time) + " мс.)");
-        }
-    }
+    
 
     private static void getAlbumsSong(Connection connection, String title) throws SQLException {
         if (title == null || title.isBlank()) return;
@@ -227,7 +211,7 @@ public class MusicJDBC {
         long time = System.currentTimeMillis();
         PreparedStatement statement = connection.prepareStatement(
                 "SELECT album_songs.id, album_songs.title, author.nickname," +
-                        " album.title, genres.genre, album.date_of_release, album_songs.length_of_the_song\n" +
+                        " album.title, genres.genre, album.date_of_release, album_songs.length_of_the_song" +
                         " FROM album_songs" +
                         " JOIN author ON album_songs.author_id = author.id" +
                         " JOIN genres ON album_songs.genre_id = genres.id" +
@@ -238,7 +222,8 @@ public class MusicJDBC {
         statement.setString(1, title);
         ResultSet resultSet = statement.executeQuery();
 
-        System.out.printf("%-3s | %-30s | %-10s | %-20s | %-10s | %-15s | %-50s%n", "id", "title", "nickname", "album_title", "genre", "date_of_release", "length");
+        System.out.printf("%-3s | %-30s | %-10s | %-20s | %-10s | %-15s | %-50s%n",
+                "id", "title", "nickname", "album_title", "genre", "date_of_release", "length");
         System.out.println("-".repeat(125));
 
         while (resultSet.next()) {
@@ -259,16 +244,17 @@ public class MusicJDBC {
                         " FROM album_songs" +
                         " JOIN author ON album_songs.author_id = author.id" +
                         " JOIN genres ON album_songs.genre_id = genres.id" +
-                        " WHERE title LIKE ?" +
+                        " WHERE title = ?" +
                         " UNION ALL" +
                         " SELECT singles.id, title, author.nickname, genres.genre, length_of_the_song" +
                         " FROM singles" +
                         " JOIN author ON singles.author_id = author.id" +
                         " JOIN genres ON singles.genre_id = genres.id" +
-                        " WHERE title LIKE ?;"
+                        " WHERE title = ?;"
         );
 
         statement.setString(1, title);
+        statement.setString(2, title);
         ResultSet resultSet = statement.executeQuery();
 
         System.out.printf("%-3s | %-30s | %-10s | %-10s | %-10s%n", "id", "title", "nickname", "genre", "length");
@@ -288,7 +274,7 @@ public class MusicJDBC {
         if (title == null || title.isBlank() || nickname == null || nickname.isBlank()) return;
 
         PreparedStatement statement = connection.prepareStatement(
-                "DELETE FROM singles WHERE title LIKE ? " +
+                "DELETE FROM singles WHERE title = ? " +
                         "AND author_id IN (SELECT id FROM author WHERE nickname = ?)"
         );
 
@@ -304,8 +290,8 @@ public class MusicJDBC {
         if (newTitle == null || newTitle.isBlank() || oldTitle == null || oldTitle.isBlank()) return;
 
         PreparedStatement statement = connection.prepareStatement(
-                "UPDATE singles SET title = ? WHERE title LIKE ? " +
-                        "AND author_id IN (SELECT id FROM author WHERE nickname LIKE ?)"
+                "UPDATE singles SET title = ? WHERE title = ? " +
+                        "AND author_id IN (SELECT id FROM author WHERE nickname = ?)"
         );
 
         statement.setString(1, newTitle);
@@ -318,7 +304,11 @@ public class MusicJDBC {
         getSingles(connection);
     }
 
-    private static void addAuthor(Connection connection, String name, String surname, String nickname, Date dateOfBirth) throws SQLException {
+
+
+    private static void addAuthor(Connection connection, String name,
+                                  String surname, String nickname, Date dateOfBirth) throws SQLException {
+
         if (name == null || name.isBlank() || surname == null || surname.isBlank() ||
                 nickname == null || nickname.isBlank()) return;
 
@@ -340,7 +330,7 @@ public class MusicJDBC {
         }
 
         System.out.println("INSERTed " + count + " author");
-        getAuthors(connection);
+        getAuthors(connection, 0);
 
     }
 
