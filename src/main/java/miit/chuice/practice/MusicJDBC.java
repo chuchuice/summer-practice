@@ -42,7 +42,7 @@ public class MusicJDBC {
 
         } catch (SQLException e) {
             if (e.getSQLState().startsWith("23")){
-                System.err.println("Произошло дублирование данных / Такого вторичного ключа не существует");
+                System.err.println("Произошло дублирование данных");
             } else throw new RuntimeException(e);
         }
 
